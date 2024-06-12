@@ -29,6 +29,19 @@ async function run() {
     const menuCollection = database.collection("menu");
     const reviewCollection = database.collection("reviews");
     const cartCollection = database.collection("carts");
+    const userCollection = database.collection("users");
+
+    // user related apis
+    app.get('/users', async(req,res)=>{
+      const result = await userCollection.find().toArray()
+      res.send(result)
+    })
+
+    app.post('/users', async(req,res)=>{
+      const user = req.body;
+      const result = await userCollection.insertOne(user)
+      res.send(result)
+    })
 
     // Menu related api
     app.get('/menu', async(req,res)=>{
