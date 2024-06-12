@@ -46,11 +46,14 @@ async function run() {
         return res.status(401).send({message: 'forbidden access'})
       }
       const token = req.headers.authorization.split(' ')[1]
-      console.log(token)
-      jwt.verify(token, process.env.Access_Token_Secret, function(err, decoded) {
-        console.log(decoded.foo) // bar
+      // console.log(token)
+      jwt.verify(token, process.env.Access_Token_Secret,(err, decoded)=> {
+        if(err){
+          return res.status(401).send({message: 'forbidden access'})
+        }
+        req.decoded = decoded
+        next()
       });
-      next()
     }
 
     // user related apis
@@ -58,6 +61,20 @@ async function run() {
       // console.log(req.headers)
       const result = await userCollection.find().toArray()
       res.send(result)
+    })
+    // verify isAdmin
+    app.get('/users/admin/:email',verifyToken, async(req,res)=>{
+      const email = req.params.email;
+      if(email !== req.decoded.email){
+        return res.status(403).send({message: "unauthorized access"})
+      }
+      const query = {email : email}
+      const user = await userCollection.findOne(query)
+      let admin = false
+      if(user){
+        admin = user?.role === 'admin'
+      }
+      res.send({admin})
     })
 
     app.post('/users', async(req,res)=>{
