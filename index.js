@@ -32,6 +32,7 @@ async function run() {
     const reviewCollection = database.collection("reviews");
     const cartCollection = database.collection("carts");
     const userCollection = database.collection("users");
+    const paymentCollection = database.collection("payments");
 
     
 
@@ -70,11 +71,11 @@ async function run() {
       next()
     }
 
-    // stripe related apis
+    // Payment related apis
     app.post('/create-payment-intent', async (req, res) => {
       const { totalPrice } = req.body;
       const amount = parseInt(totalPrice * 100);
-      console.log(amount, 'amount inside the intent')
+      // console.log(amount, 'amount inside the intent')
 
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amount,
@@ -86,6 +87,24 @@ async function run() {
         clientSecret: paymentIntent.client_secret
       })
     });
+
+    app.get('/payments', async(req,res)=>{
+      const result = await paymentCollection.find().toArray()
+      res.send(result)
+    })
+
+    app.post('/payments', async(req,res)=>{
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment)
+
+      // delete each item from the cart
+      const query = {_id : {
+        $in: payment.cartId.map(id=> new ObjectId(id))
+      }}
+      // console.log(query)
+      const deleteResult = await cartCollection.deleteMany(query)
+      res.send({paymentResult,deleteResult})
+    })
 
     // user related apis
     app.get('/users',verifyToken,verifyAdmin, async(req,res)=>{
