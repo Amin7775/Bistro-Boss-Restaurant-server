@@ -33,20 +33,7 @@ async function run() {
     const cartCollection = database.collection("carts");
     const userCollection = database.collection("users");
 
-    // stripe related apis
-    app.post("/create-payment-intent", async (req, res) => {
-      const price = req.body;
-      const amount = parseInt(price * 100)
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount,
-        currency: "usd",
-        payment_method_types : ['card']
-      });
-
-      res.send({
-          clientSecret: paymentIntent.client_secret,
-      })
-    })
+    
 
     // jwt related apis
     app.post('/jwt', async(req,res)=>{
@@ -82,6 +69,23 @@ async function run() {
       }
       next()
     }
+
+    // stripe related apis
+    app.post('/create-payment-intent', async (req, res) => {
+      const { totalPrice } = req.body;
+      const amount = parseInt(totalPrice * 100);
+      console.log(amount, 'amount inside the intent')
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    });
 
     // user related apis
     app.get('/users',verifyToken,verifyAdmin, async(req,res)=>{
