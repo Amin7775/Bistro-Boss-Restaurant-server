@@ -10,6 +10,34 @@ const stripe = require("stripe")(process.env.Stripe_Secret_key);
 app.use(cors())
 app.use(express.json())
 
+// jwt verify token middleware
+const verifyToken = (req,res,next)=>{
+  if(!req.headers.authorization){
+    return res.status(401).send({message: 'forbidden access'})
+  }
+  const token = req.headers.authorization.split(' ')[1]
+  // console.log(token)
+  jwt.verify(token, process.env.Access_Token_Secret,(err, decoded)=> {
+    if(err){
+      return res.status(401).send({message: 'forbidden access'})
+    }
+    req.decoded = decoded
+    next()
+  });
+}
+
+// verify admin middleware : use it after verifyToken
+const verifyAdmin = async(req,res,next) =>{
+  const email = req.decoded?.email;
+  const query = {email : email}
+  const user = await userCollection.findOne(query)
+  const isAdmin = user?.role === 'admin';
+  if(!isAdmin){
+    return res.status(403).send({message: 'forbidden access'})
+  }
+  next()
+}
+
 
 // mongodb - start
 
@@ -41,73 +69,6 @@ async function run() {
       const user = req.body;
       const token = jwt.sign(user,process.env.Access_Token_Secret,{expiresIn:'5h'})
       res.send({token})
-    })
-
-    // jwt verify token middleware
-    const verifyToken = (req,res,next)=>{
-      if(!req.headers.authorization){
-        return res.status(401).send({message: 'forbidden access'})
-      }
-      const token = req.headers.authorization.split(' ')[1]
-      // console.log(token)
-      jwt.verify(token, process.env.Access_Token_Secret,(err, decoded)=> {
-        if(err){
-          return res.status(401).send({message: 'forbidden access'})
-        }
-        req.decoded = decoded
-        next()
-      });
-    }
-
-    // verify admin middleware : use it after verifyToken
-    const verifyAdmin = async(req,res,next) =>{
-      const email = req.decoded?.email;
-      const query = {email : email}
-      const user = await userCollection.findOne(query)
-      const isAdmin = user?.role === 'admin';
-      if(!isAdmin){
-        return res.status(403).send({message: 'forbidden access'})
-      }
-      next()
-    }
-
-    // Payment related apis
-    app.post('/create-payment-intent', async (req, res) => {
-      const { totalPrice } = req.body;
-      const amount = parseInt(totalPrice * 100);
-      // console.log(amount, 'amount inside the intent')
-
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount,
-        currency: 'usd',
-        payment_method_types: ['card']
-      });
-
-      res.send({
-        clientSecret: paymentIntent.client_secret
-      })
-    });
-
-    app.get('/payments/:email',verifyToken, async(req,res)=>{
-      const query = {email: req.params.email}
-      if(req.params.email !== req.decoded.email){
-        return res.status(403).send({message:'forbidden access'})
-      }
-      const result = await paymentCollection.find(query).toArray()
-      res.send(result)
-    })
-
-    app.post('/payments', async(req,res)=>{
-      const payment = req.body;
-      const paymentResult = await paymentCollection.insertOne(payment)
-
-      // delete each item from the cart
-      const query = {_id : {
-        $in: payment.cartId.map(id=> new ObjectId(id))
-      }}
-      // console.log(query)
-      const deleteResult = await cartCollection.deleteMany(query)
-      res.send({paymentResult,deleteResult})
     })
 
     // user related apis
@@ -206,6 +167,45 @@ async function run() {
       const query = {_id : new ObjectId(id)}
       const result = await cartCollection.deleteOne(query)
       res.send(result)
+    })
+
+    // Payment related apis
+    app.post('/create-payment-intent', async (req, res) => {
+      const { totalPrice } = req.body;
+      const amount = parseInt(totalPrice * 100);
+      // console.log(amount, 'amount inside the intent')
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    });
+
+    app.get('/payments/:email',verifyToken, async(req,res)=>{
+      const query = {email: req.params.email}
+      if(req.params.email !== req.decoded.email){
+        return res.status(403).send({message:'forbidden access'})
+      }
+      const result = await paymentCollection.find(query).toArray()
+      res.send(result)
+    })
+
+    app.post('/payments', async(req,res)=>{
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment)
+
+      // delete each item from the cart
+      const query = {_id : {
+        $in: payment.cartId.map(id=> new ObjectId(id))
+      }}
+      // console.log(query)
+      const deleteResult = await cartCollection.deleteMany(query)
+      res.send({paymentResult,deleteResult})
     })
 
    
